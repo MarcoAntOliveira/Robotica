@@ -3,55 +3,75 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 # Parâmetros do braço
-L1, L2 = 1.0, 1.0
+L1, L2, L3 = 1.0, 1.0, 1.0
 
-# Cinemática direta
-def fk(theta1:float, theta2:float):
+# Cinemática direta: calcula posições acumulando ângulos corretamente
+def fk(theta1: float, theta2: float, theta3: float = 0):
     x0, y0 = 0, 0
-    x1 = L1 * np.cos(theta1)
-    y1 = L1 * np.sin(theta1)
-    x2 = x1 + L2 * np.cos(theta1 + theta2)
-    y2 = y1 + L2 * np.sin(theta1 + theta2)
-    return [(x0, y0), (x1, y1), (x2, y2)]
+    a1 = theta1
+    a2 = theta1 + theta2
+    a3 = theta1 + theta2 + theta3  # Inclui orientação final, se desejar
 
-# Cinemática inversa
+    x1 = x0 + L1 * np.cos(a1)
+    y1 = y0 + L1 * np.sin(a1)
+
+    x2 = x1 + L2 * np.cos(a2)
+    y2 = y1 + L2 * np.sin(a2)
+
+    x3 = x2 + L3 * np.cos(a3)
+    y3 = y2 + L3 * np.sin(a3)
+
+    return [(x0, y0), (x1, y1), (x2, y2), (x3, y3)]
+
+# Cinemática inversa para 2 DOF (L3 será apenas visual)
 def ik(x, y):
+    # Compensar a posição final (remoção de L3)
+    r = np.hypot(x, y)
+    if r > (L1 + L2 + L3):
+        return None, None  # Fora do alcance
+
+    # Reduz a posição desejada para considerar L3
+    angle_to_target = np.arctan2(y, x)
+    x -= L3 * np.cos(angle_to_target)
+    y -= L3 * np.sin(angle_to_target)
+
+    # IK clássica para 2 elos
     r = np.hypot(x, y)
     cos_theta2 = (x**2 + y**2 - L1**2 - L2**2) / (2 * L1 * L2)
     if abs(cos_theta2) > 1:
-        return None, None  # Ponto fora do alcance
+        return None, None  # Impossível
+
     sin_theta2 = np.sqrt(1 - cos_theta2**2)
     theta2 = np.arctan2(sin_theta2, cos_theta2)
     k1 = L1 + L2 * cos_theta2
     k2 = L2 * sin_theta2
     theta1 = np.arctan2(y, x) - np.arctan2(k2, k1)
+
     return theta1, theta2
 
 # Trajetória desejada (círculo)
 N = 100
 t = np.linspace(0, 2*np.pi, N)
-traj_x = 1.0 + 0.5 * np.cos(t)
+traj_x = 1.5 + 0.5 * np.cos(t)
 traj_y = 0.5 * np.sin(t)
 
 # Preparar figura
 fig, ax = plt.subplots()
 line, = ax.plot([], [], 'o-', lw=4)
 trace, = ax.plot([], [], 'g--', lw=1)
-ax.set_xlim(-2, 2)
-ax.set_ylim(-2, 2)
+ax.set_xlim(-3, 3)
+ax.set_ylim(-3, 3)
 ax.set_aspect('equal')
 ax.grid()
 
-# Armazena os pontos visitados para formar o rastro
+# Rastro
 trajecao_real = []
 
-# Função de inicialização
 def init():
     line.set_data([], [])
     trace.set_data([], [])
     return line, trace
 
-# Função de atualização da animação
 def update(frame):
     x, y = traj_x[frame], traj_y[frame]
     theta1, theta2 = ik(x, y)
@@ -69,5 +89,5 @@ def update(frame):
 ani = animation.FuncAnimation(fig, update, frames=N, init_func=init,
                               blit=True, interval=50, repeat=True)
 
-plt.title("Simulação do Braço Robótico 2D")
+plt.title("Simulação do Braço Robótico 3 Elos (2 DOF + Efetuador)")
 plt.show()
